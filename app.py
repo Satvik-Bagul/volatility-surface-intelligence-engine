@@ -12,7 +12,7 @@ st.title("Volatility Surface Intelligence Engine")
 st.caption("Historical SPY option-market data → implied-volatility extraction → out-of-sample ML")
 st.caption("About this demo " )
 st.caption("The underlying research pipeline processes a large historical options dataset and calculates implied volatility using numerical root-finding. This computation is intentionally performed rather than relying on precomputed IV values. The hosted version may take several minutes to process large date ranges. For faster execution and full experimentation, run the project locally.")
-st.caption("GitHub Link: [volatility-surface-intelligence](https://github.com/volatility-surface-intelligence)")
+st.caption("GitHub Link: [volatility-surface-intelligence](https://github.com/Satvik-Bagul/volatility-surface-intelligence-engine)")
 
 st.sidebar.header("Dataset")
 start_date = st.sidebar.date_input("Start Date", value=None)
