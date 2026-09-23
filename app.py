@@ -9,13 +9,22 @@ st.set_page_config(
 
 st.title("Volatility Surface Intelligence Engine")
 
-DATA_DIR = Path("data/raw/spy_backup")
+DATA_DIR = Path("data/raw/spy")
 
 st.write("### Diagnostic")
 
 if not DATA_DIR.exists():
     st.error(f"Data directory does not exist: {DATA_DIR}")
     st.stop()
+
+st.write("Files currently inside `data/raw/spy`:")
+
+for item in DATA_DIR.iterdir():
+    st.write({
+        "name": item.name,
+        "size_mb": round(item.stat().st_size / (1024**2), 2),
+        "is_file": item.is_file(),
+    })
 
 files = sorted(DATA_DIR.glob("*.parquet"))
 
