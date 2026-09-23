@@ -17,7 +17,7 @@ end_date = st.sidebar.date_input("End Date", value=None)
 year_text = st.sidebar.text_input(
     "Parquet Years",
     "2024",
-    help="Enter one or more years separated by commas, e.g. 2023,2024",
+    help="Enter years separated by commas, for example: 2023,2024",
 )
 
 st.sidebar.header("Research Settings")
@@ -64,7 +64,7 @@ try:
         min_oi,
     )
 
-except Exception as e:
+except Exception as exc:
     st.error(
         "Unable to load the historical SPY dataset."
     )
@@ -72,11 +72,11 @@ except Exception as e:
     st.warning(
         "The app automatically downloads missing "
         "SPY Parquet files. Please refresh the app "
-        "and try again if the download was interrupted."
+        "if the download was interrupted."
     )
 
     with st.expander("Technical details"):
-        st.code(str(e))
+        st.code(str(exc))
 
     st.stop()
 

@@ -6,33 +6,6 @@ import pandas as pd
 import streamlit as st
 
 
-OPTION_COLUMNS = [
-    "contract_id",
-    "symbol",
-    "expiration",
-    "strike",
-    "type",
-    "last",
-    "mark",
-    "bid",
-    "bid_size",
-    "ask",
-    "ask_size",
-    "volume",
-    "open_interest",
-    "date",
-    "implied_volatility",
-    "delta",
-    "gamma",
-    "theta",
-    "vega",
-    "rho",
-    "in_the_money",
-]
-
-
-# Public historical SPY dataset.
-# Files are downloaded only when they are missing locally.
 SPY_DATA_BASE_URL = (
     "https://raw.githubusercontent.com/"
     "anahatsingh-ui/options-dataset-hist/main/spy"
@@ -40,11 +13,7 @@ SPY_DATA_BASE_URL = (
 
 
 def _download_file(url, destination):
-    """
-    Download a file from the public SPY dataset.
-
-    Existing files are not downloaded again.
-    """
+    """Download a missing dataset file."""
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
 
@@ -59,7 +28,7 @@ def _download_file(url, destination):
     )
 
     try:
-        with urlopen(request, timeout=120) as response:
+        with urlopen(request, timeout=180) as response:
             with destination.open("wb") as output:
                 while True:
                     chunk = response.read(1024 * 1024)
@@ -70,7 +39,6 @@ def _download_file(url, destination):
                     output.write(chunk)
 
     except Exception:
-        # Remove incomplete file if the download fails.
         if destination.exists():
             destination.unlink()
 
@@ -79,10 +47,9 @@ def _download_file(url, destination):
 
 def _ensure_spy_data(data_dir, years):
     """
-    Make sure all requested SPY Parquet files exist.
+    Download missing SPY Parquet files.
 
-    Missing files are downloaded automatically.
-    Existing files are left untouched.
+    Existing files are reused.
     """
     data_dir = Path(data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -98,9 +65,9 @@ def _ensure_spy_data(data_dir, years):
     underlying_path = data_dir / "underlying_prices.parquet"
     underlying_missing = not underlying_path.exists()
 
-    total_downloads = len(missing_years) + int(underlying_missing)
+    total = len(missing_years) + int(underlying_missing)
 
-    if total_downloads == 0:
+    if total == 0:
         return
 
     progress = st.progress(0)
@@ -110,23 +77,21 @@ def _ensure_spy_data(data_dir, years):
 
     try:
         for year in missing_years:
-            filename = f"options_{year}.parquet"
-
             status.info(
-                f"Downloading historical SPY options data for {year}..."
+                f"Downloading SPY options data for {year}..."
             )
 
             _download_file(
-                f"{SPY_DATA_BASE_URL}/{filename}",
-                data_dir / filename,
+                f"{SPY_DATA_BASE_URL}/options_{year}.parquet",
+                data_dir / f"options_{year}.parquet",
             )
 
             completed += 1
-            progress.progress(completed / total_downloads)
+            progress.progress(completed / total)
 
         if underlying_missing:
             status.info(
-                "Downloading historical SPY underlying prices..."
+                "Downloading SPY underlying price data..."
             )
 
             _download_file(
@@ -135,27 +100,24 @@ def _ensure_spy_data(data_dir, years):
             )
 
             completed += 1
-            progress.progress(completed / total_downloads)
-
-        status.success("Historical SPY data is ready.")
+            progress.progress(completed / total)
 
     except Exception as exc:
         progress.empty()
         status.empty()
 
         raise RuntimeError(
-            "The app could not download the required historical SPY "
-            f"data. Please try again later.\n\nDetails: {exc}"
+            "Unable to download the historical SPY dataset. "
+            f"Download error: {exc}"
         ) from exc
 
     progress.empty()
     status.empty()
 
 
-def _read_parquet(path: Path, columns=None):
-    """
-    Read a Parquet file with PyArrow.
-    """
+def _read_parquet(path, columns=None):
+    path = Path(path)
+
     if not path.exists():
         raise FileNotFoundError(
             f"Dataset file not found: {path}"
@@ -176,19 +138,27 @@ def load_spy_options(
     years=None,
 ):
     """
-    Load yearly SPY option Parquet files.
+    Load historical SPY option data.
 
-    Missing files are automatically downloaded.
+    Missing yearly Parquet files are downloaded automatically.
     """
+
     if years is None:
         years = [2024]
 
-    years = sorted(set(int(year) for year in years))
+    years = sorted(
+        set(int(year) for year in years)
+    )
 
     data_dir = Path(data_dir)
 
-    # Automatically download anything Streamlit Cloud is missing.
-    _ensure_spy_data(data_dir, years)
+    # THIS IS THE IMPORTANT CHANGE.
+    # The old version only searched for files.
+    # This version downloads missing files.
+    _ensure_spy_data(
+        data_dir,
+        years,
+    )
 
     columns = [
         "contract_id",
@@ -215,7 +185,10 @@ def load_spy_options(
     frames = []
 
     for year in years:
-        path = data_dir / f"options_{year}.parquet"
+        path = (
+            data_dir
+            / f"options_{year}.parquet"
+        )
 
         df = _read_parquet(
             path,
@@ -226,7 +199,7 @@ def load_spy_options(
 
     if not frames:
         raise FileNotFoundError(
-            "No historical SPY option data was found."
+            "No SPY option data could be loaded."
         )
 
     df = pd.concat(
@@ -246,12 +219,14 @@ def load_spy_options(
 
     if start_date is not None:
         df = df[
-            df["date"] >= pd.Timestamp(start_date)
+            df["date"]
+            >= pd.Timestamp(start_date)
         ]
 
     if end_date is not None:
         df = df[
-            df["date"] <= pd.Timestamp(end_date)
+            df["date"]
+            <= pd.Timestamp(end_date)
         ]
 
     return df.reset_index(drop=True)
@@ -264,9 +239,9 @@ def load_spy_underlying(
     """
     Load historical SPY underlying prices.
 
-    The underlying file is automatically downloaded
-    if it does not exist.
+    The file is downloaded automatically if missing.
     """
+
     path = Path(path)
 
     if not path.exists():
@@ -319,10 +294,8 @@ def load_spy_underlying(
 
 
 def prepare_dataset(options, underlying):
-    """
-    Merge the option chain with the same-day SPY close
-    and create quantitative research features.
-    """
+    """Merge options with SPY prices and create research features."""
+
     df = options.copy()
     underlying = underlying.copy()
 
@@ -331,7 +304,7 @@ def prepare_dataset(options, underlying):
         errors="coerce",
     )
 
-    for col in [
+    numeric_columns = [
         "bid",
         "ask",
         "mark",
@@ -343,7 +316,9 @@ def prepare_dataset(options, underlying):
         "theta",
         "vega",
         "rho",
-    ]:
+    ]
+
+    for col in numeric_columns:
         if col in df.columns:
             df[col] = pd.to_numeric(
                 df[col],
@@ -378,7 +353,8 @@ def prepare_dataset(options, underlying):
     )
 
     df["T"] = (
-        df["expiration"] - df["date"]
+        df["expiration"]
+        - df["date"]
     ).dt.total_seconds() / (
         365.25 * 24 * 60 * 60
     )
@@ -403,7 +379,8 @@ def prepare_dataset(options, underlying):
     )
 
     df["relative_spread"] = np.where(
-        valid_quotes & (df["mid"] > 0),
+        valid_quotes
+        & (df["mid"] > 0),
         df["spread"] / df["mid"],
         np.nan,
     )
@@ -412,7 +389,8 @@ def prepare_dataset(options, underlying):
         (df["spot"] > 0)
         & (df["strike"] > 0),
         np.log(
-            df["strike"] / df["spot"]
+            df["strike"]
+            / df["spot"]
         ),
         np.nan,
     )
@@ -430,10 +408,8 @@ def clean_quotes(
     min_open_interest=10,
     min_volume=0,
 ):
-    """
-    Remove crossed, zero-bid, wide-spread,
-    stale/illiquid, and otherwise unusable observations.
-    """
+    """Remove unusable or illiquid option observations."""
+
     df = df.copy()
 
     keep = (
@@ -450,7 +426,10 @@ def clean_quotes(
             max_spread_pct
         )
         & df["option_type"].isin(
-            ["call", "put"]
+            [
+                "call",
+                "put",
+            ]
         )
         & (
             df["open_interest"]
