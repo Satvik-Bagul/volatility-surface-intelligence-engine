@@ -14,7 +14,11 @@ st.caption("Historical SPY option-market data → implied-volatility extraction 
 st.sidebar.header("Dataset")
 start_date = st.sidebar.date_input("Start Date", value=None)
 end_date = st.sidebar.date_input("End Date", value=None)
-year_text = st.sidebar.text_input("Parquet Years", "2021,2022,2023,2024,2025")
+year_text = st.sidebar.text_input(
+    "Parquet Years",
+    "2024",
+    help="Enter one or more years separated by commas, e.g. 2023,2024",
+)
 
 st.sidebar.header("Research Settings")
 model_name = st.sidebar.selectbox("ML Model", ["Gradient Boosting", "MLP Neural Network"])
@@ -26,22 +30,54 @@ rate = st.sidebar.number_input("Risk-Free Rate", value=.045, step=.005, format="
 q = st.sidebar.number_input("Dividend Yield", value=.0, step=.005, format="%.4f")
 
 try:
-    years = [int(x.strip()) for x in year_text.split(",") if x.strip()]
+    years = [
+        int(x.strip())
+        for x in year_text.split(",")
+        if x.strip()
+    ]
+
+    if not years:
+        st.error(
+            "Please enter at least one Parquet year."
+        )
+        st.stop()
+
     raw = load_spy_options(
         data_dir="data/raw/spy",
         start_date=start_date,
         end_date=end_date,
         years=years,
     )
-    underlying = load_spy_underlying("data/raw/spy/underlying_prices.parquet")
-    raw = prepare_dataset(raw, underlying)
-    clean = clean_quotes(raw, max_spread, min_oi)
-except Exception as e:
-    st.error(str(e))
-    st.info(
-        "Download the free SPY Parquet data first. Example:\n\n"
-        "python -m src.download_spy --years 2021 2022 2023 2024 2025"
+
+    underlying = load_spy_underlying(
+        "data/raw/spy/underlying_prices.parquet"
     )
+
+    raw = prepare_dataset(
+        raw,
+        underlying,
+    )
+
+    clean = clean_quotes(
+        raw,
+        max_spread,
+        min_oi,
+    )
+
+except Exception as e:
+    st.error(
+        "Unable to load the historical SPY dataset."
+    )
+
+    st.warning(
+        "The app automatically downloads missing "
+        "SPY Parquet files. Please refresh the app "
+        "and try again if the download was interrupted."
+    )
+
+    with st.expander("Technical details"):
+        st.code(str(e))
+
     st.stop()
 
 with st.spinner("Extracting implied volatility from market mids..."):
