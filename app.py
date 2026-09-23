@@ -10,6 +10,8 @@ from src.models import FEATURES, chronological_split, train_gradient_boosting, t
 st.set_page_config(page_title="Volatility Surface Intelligence Engine", layout="wide")
 st.title("Volatility Surface Intelligence Engine")
 st.caption("Historical SPY option-market data → implied-volatility extraction → out-of-sample ML")
+st.caption("About this demo " \
+"The underlying research pipeline processes a large historical options dataset and calculates implied volatility using numerical root-finding. This computation is intentionally performed rather than relying on precomputed IV values. The hosted version may take several minutes to process large date ranges. For faster execution and full experimentation, run the project locally.")
 
 st.sidebar.header("Dataset")
 start_date = st.sidebar.date_input("Start Date", value=None)
